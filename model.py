@@ -105,7 +105,17 @@ def load_wav_to_mel(wav_path: str | Path) -> torch.Tensor:
     mel = _MEL_TRANSFORM(waveform)               # (1, N_MELS, T)
     log_mel = torch.log(mel + 1e-9)
     log_mel = log_mel.squeeze(0).transpose(0, 1) # (T, N_MELS)
-    return log_mel.unsqueeze(0)                   # (1, T, N_MELS)
+
+    # Whisper encoder requires exactly 3000 frames (= 30 s at 10 ms hop)
+    MAX_FRAMES = 3000
+    n_frames = log_mel.shape[0]
+    if n_frames < MAX_FRAMES:
+        pad = torch.zeros(MAX_FRAMES - n_frames, N_MELS)
+        log_mel = torch.cat([log_mel, pad], dim=0)
+    else:
+        log_mel = log_mel[:MAX_FRAMES]
+
+    return log_mel.unsqueeze(0)                   # (1, 3000, N_MELS)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
