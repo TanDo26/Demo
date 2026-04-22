@@ -172,81 +172,57 @@ def vn_syllable_to_phonemes(syllable: str) -> list[str]:
     phonemes.append(tone)
     return phonemes
 
-def vn_text_to_phonemes(text: str) -> list[str]:
-    sep = SPECIAL_TOKENS["VN_SEP"]
+def text_to_graphemes(text: str) -> list[str]:
+    """
+    Chuyển văn bản thành danh sách các âm tiết tiếng Việt (grapheme).
+    Nếu gặp từ tiếng Anh có trong VIETLISH_MAP, tách thành các âm tiết Vietlish.
+    """
     words = [re.sub(r"[^\w\u00C0-\u1EF9]","",w) for w in text.strip().lower().split()]
     words = [w for w in words if w]
-    result: list[str] = []
-    for i, w in enumerate(words):
-        result += vn_syllable_to_phonemes(w)
-        if i < len(words)-1:
-            result.append(sep)
-    return result
+    graphemes = []
+    for w in words:
+        if w in VIETLISH_MAP:
+            graphemes.extend(VIETLISH_MAP[w][0])
+        else:
+            graphemes.append(w)
+    return graphemes
+
+def graphemes_to_phonemes(graphemes: list[str]) -> list[str]:
+    """
+    Chuyển danh sách grapheme (âm tiết tiếng Việt) thành chuỗi phoneme.
+    """
+    sep = SPECIAL_TOKENS.get("VN_SEP", "$")
+    phonemes = []
+    for i, g in enumerate(graphemes):
+        phonemes.extend(vn_syllable_to_phonemes(g))
+        if i < len(graphemes) - 1:
+            phonemes.append(sep)
+    return phonemes
+
+def vn_text_to_phonemes(text: str) -> list[str]:
+    return graphemes_to_phonemes(text_to_graphemes(text))
 
 # ───────────────────────────────────────────────────────────────────────────────
-#  VIETLISH
+#  VIETLISH / EN / IEV (Tất cả đều quy về 1 luồng grapheme -> phoneme)
 # ───────────────────────────────────────────────────────────────────────────────
 
 def vietlish_word_to_phonemes(word: str) -> list[str]:
-    word = word.lower().strip()
-    if word in VIETLISH_MAP:
-        return VIETLISH_MAP[word][1]
-    return vn_syllable_to_phonemes(word)
+    return graphemes_to_phonemes(text_to_graphemes(word))
 
 def vietlish_text_to_phonemes(text: str) -> list[str]:
-    sep = SPECIAL_TOKENS["VN_SEP"]
-    words = [re.sub(r"[^\w]","",w) for w in text.strip().split()]
-    words = [w for w in words if w]
-    result: list[str] = []
-    for i, w in enumerate(words):
-        result += vietlish_word_to_phonemes(w)
-        if i < len(words)-1:
-            result.append(sep)
-    return result
+    return graphemes_to_phonemes(text_to_graphemes(text))
 
-# ───────────────────────────────────────────────────────────────────────────────
-#  IEV (code-switching)
-# ───────────────────────────────────────────────────────────────────────────────
+def iev_text_to_phonemes(text: str) -> list[str]:
+    return graphemes_to_phonemes(text_to_graphemes(text))
+
+def en_text_to_phonemes(text: str) -> list[str]:
+    return graphemes_to_phonemes(text_to_graphemes(text))
 
 def _is_vn(w: str) -> bool:
     return any(c in _VN_CHARS for c in w) or w.lower() in _VN_COMMON
 
 def _is_en(w: str) -> bool:
     return bool(re.match(r"^[a-zA-Z]+$", w)) and w.lower() not in _VN_COMMON
-
-def iev_text_to_phonemes(text: str) -> list[str]:
-    sep = SPECIAL_TOKENS["VN_SEP"]
-    words = [re.sub(r"[^\w\u00C0-\u1EF9]","",w) for w in text.strip().split()]
-    words = [w for w in words if w]
-    result: list[str] = []
-    for i, w in enumerate(words):
-        if _is_vn(w):
-            ph = vn_syllable_to_phonemes(w)
-        elif _is_en(w):
-            ph = vietlish_word_to_phonemes(w.lower())
-        else:
-            ph = vn_syllable_to_phonemes(w)
-        result += ph
-        if i < len(words)-1:
-            result.append(sep)
-    return result
-
-# ───────────────────────────────────────────────────────────────────────────────
-#  ENGLISH (minimal fallback)
-# ───────────────────────────────────────────────────────────────────────────────
-
-def en_text_to_phonemes(text: str) -> list[str]:
-    # Do ý tưởng là chuyển đổi mọi từ thành cơ sở tiếng Việt
-    # Ta sẽ xử lý các từ tiếng Anh dưới dạng vietlish
-    sep = SPECIAL_TOKENS.get("VN_SEP", "$")
-    words = [re.sub(r"[^a-z]","",w) for w in text.strip().lower().split()]
-    words = [w for w in words if w]
-    result: list[str] = []
-    for i, w in enumerate(words):
-        result += vietlish_word_to_phonemes(w)
-        if i < len(words)-1:
-            result.append(sep)
-    return result
 
 # ───────────────────────────────────────────────────────────────────────────────
 #  AUTO-DETECT + DISPATCHER
