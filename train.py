@@ -284,6 +284,9 @@ def evaluate(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def train(
+    # ── Basic ─────────────────────────────────────────────────────────────────
+    model_size:       str   = "small",
+    selected_datasets: list[str] | None = None,
     # ── Data ──────────────────────────────────────────────────────────────────
     num_epochs:       int   = 30,
     manifest:         str   = "dataset/manifest_all.jsonl",
@@ -292,10 +295,6 @@ def train(
     seed:             int   = 42,
     batch_size:       int   = 8,
     # ── Model ─────────────────────────────────────────────────────────────────
-    d_model:          int   = 512,
-    nhead:            int   = 8,
-    num_layers:       int   = 6,
-    dim_feedforward:  int   = 2048,
     dropout:          float = 0.1,
     # ── Optimizer ─────────────────────────────────────────────────────────────
     lr:               float = 3e-4,
@@ -312,10 +311,18 @@ def train(
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    if model_size == "small":
+        d_model, nhead, num_layers, dim_feedforward = 256, 4, 4, 1024
+    elif model_size == "medium":
+        d_model, nhead, num_layers, dim_feedforward = 384, 6, 6, 1536
+    else:  # large
+        d_model, nhead, num_layers, dim_feedforward = 512, 8, 6, 2048
+
     print(f"\n{'═' * 60}")
     print(f"  PhoWhisper → Transformer Decoder  (Seq2Seq Training)")
     print(f"{'═' * 60}")
     print(f"  Device          : {device}")
+    print(f"  Size            : {model_size}")
     print(f"  d_model         : {d_model}")
     print(f"  nhead / layers  : {nhead} / {num_layers}")
     print(f"  FFN dim         : {dim_feedforward}")
@@ -328,7 +335,20 @@ def train(
     print(f"{'═' * 60}\n")
 
     # ── Data ──────────────────────────────────────────────────────────────────
-    all_entries                  = load_manifest(manifest)
+    all_entries = load_manifest(manifest)
+    if selected_datasets and "all" not in selected_datasets:
+        filtered = []
+        for e in all_entries:
+            src = e.get("source", "")
+            if any(ds in src for ds in selected_datasets):
+                filtered.append(e)
+        all_entries = filtered
+        print(f"Filtered dataset to {len(all_entries)} entries based on sources: {selected_datasets}")
+
+    if len(all_entries) == 0:
+        print("[ERROR] No entries found after dataset filtering. Please check your dataset names.")
+        return
+
     train_entries, eval_entries  = split_manifest(all_entries, train_ratio, seed)
     print(f"Dataset split (seed={seed}): "
           f"{len(train_entries)} train  |  {len(eval_entries)} eval  "
@@ -447,4 +467,19 @@ def train(
 
 
 if __name__ == "__main__":
-    train()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--size", type=str, choices=["small", "medium", "large"], default="small",
+                        help="Model size: small, medium, or large (default: small)")
+    parser.add_argument("--datasets", nargs="+", default=["all"],
+                        help="Which datasets to use, e.g., vivos fosd vlsp2020. (default: all)")
+    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--batch_size", type=int, default=8)
+    args = parser.parse_args()
+
+    train(
+        model_size=args.size,
+        selected_datasets=args.datasets,
+        num_epochs=args.epochs,
+        batch_size=args.batch_size,
+    )
