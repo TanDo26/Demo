@@ -222,20 +222,15 @@ def iev_text_to_phonemes(text: str) -> list[str]:
 #  ENGLISH (minimal fallback)
 # ───────────────────────────────────────────────────────────────────────────────
 
-_EN_MAP: dict[str,list[str]] = {
-    "hello":["h","ə","l","oʊ"],"world":["w","ɜː","l","d"],
-    "laptop":["l","æ","p","t","ɒ","p"],"coffee":["k","ɒ","f","i"],
-    "message":["m","ɛ","s","ɪ","dʒ"],"inbox":["ɪ","n","b","ɒ","k","s"],
-    "email":["iː","m","eɪ","l"],"meeting":["m","iː","t","ɪ","ŋ"],
-}
-
 def en_text_to_phonemes(text: str) -> list[str]:
-    sep = SPECIAL_TOKENS["EN_SEP"]
+    # Do ý tưởng là chuyển đổi mọi từ thành cơ sở tiếng Việt
+    # Ta sẽ xử lý các từ tiếng Anh dưới dạng vietlish
+    sep = SPECIAL_TOKENS.get("VN_SEP", "$")
     words = [re.sub(r"[^a-z]","",w) for w in text.strip().lower().split()]
     words = [w for w in words if w]
     result: list[str] = []
     for i, w in enumerate(words):
-        result += _EN_MAP.get(w, list(w))
+        result += vietlish_word_to_phonemes(w)
         if i < len(words)-1:
             result.append(sep)
     return result
@@ -403,6 +398,8 @@ def _demo():
     cases = [
         ("xin chào",                    "vi",       "Tiếng Việt"),
         ("tôi đang đi học",             "vi",       "Câu VN"),
+        ("say",                         "en",       "Vietlish"),
+        ("xấy",                         "vi",       "Câu VN"),
         ("inbox",                       "vietlish", "Vietlish"),
         ("message coffee",              "vietlish", "Vietlish nhiều từ"),
         ("anh đang dùng laptop ở nhà",  "iev",      "Code-switching"),

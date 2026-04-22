@@ -24,8 +24,6 @@ SPECIAL_TOKENS = {
     "SOT":    "<sot>",   # 2  — start of transcript
     "EOT":    "<eot>",   # 3  — end of transcript
     "VN_SEP": "$",       # 4  — Vietnamese syllable boundary
-    "EN_SEP": "|",       # 5  — English syllable boundary
-    "LINK":   "—",       # 6  — English linking sound
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -53,7 +51,7 @@ VN_INITIALS = [
     "r",    # r
     "s",    # s / x
     "t",    # t
-    "tʰ",   # th
+    "th",   # th
     "v",    # v
     "ʔ",    # zero-initial / glottal stop (âm tiết bắt đầu bằng nguyên âm)
 ]
@@ -102,44 +100,6 @@ VN_TONES = [
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  ENGLISH-ONLY PHONEMES (IPA)  — không có trong tiếng Việt
-# ═══════════════════════════════════════════════════════════════════════════════
-
-EN_VOWELS = [
-    "æ",    # cat, bad
-    "ɒ",    # hot, dog (British)
-    "ʌ",    # cup, bus
-    "ɪ",    # bit, sit
-    "ʊ",    # put, book
-    "ə",    # schwa
-    "iː",   # see, feet
-    "uː",   # too, blue
-    "ɜː",   # bird, word
-    "ɑː",   # car, father
-    "ɔː",   # more, door
-]
-
-EN_DIPHTHONGS = [
-    "eɪ",   # say, day
-    "aɪ",   # my, fly
-    "ɔɪ",   # boy, coin
-    "oʊ",   # go, show
-    "aʊ",   # how, now
-    "ɪə",   # near, here
-    "eə",   # care, bear
-    "ʊə",   # tour, pure
-]
-
-EN_CONSONANTS = [
-    "dʒ",   # judge, age
-    "ʒ",    # vision, measure
-    "θ",    # think, bath
-    "ð",    # this, bathe
-    "ʃ",    # she, wash
-    "tz",   # affricative dùng trong Vietlish (mét xịt → "tz")
-]
-
-# ═══════════════════════════════════════════════════════════════════════════════
 #  BUILD VOCABULARY  {phoneme_str → int}
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -164,10 +124,6 @@ def _build_vocab() -> dict[str, int]:
     _add(VN_CODAS)                  # 41–48  (p/t/k/m/n/ŋ/j/w có thể trùng với initials về ký hiệu,
                                     #         nhưng index KHÁC nhau — context xác định vai trò)
     _add(VN_TONES)                  # 49–54
-    _add(EN_VOWELS)                 # 55–65
-    _add(EN_DIPHTHONGS)             # 66–73
-    _add(EN_CONSONANTS)             # 74–79
-
     return {tok: idx for idx, tok in enumerate(tokens)}
 
 
@@ -227,47 +183,45 @@ def decode_sequence(indices: list[int], skip_special: bool = True) -> list[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 VIETLISH_MAP: dict[str, tuple[list[str], list[str]]] = {
-    # "english_word": (["viet-syllable", ...], ["ph", "o", "n", "e", "m", "e", "s"])
-    "message":      (["mét", "xịt"],              ["m","e","-4","tz","$","s","i","-5","tz"]),
-    "inbox":        (["in", "bóc"],               ["ɪ","n","$","b","o","-4","k"]),
-    "coffee":       (["cà", "phê"],               ["k","a","-2","$","f","e","-1"]),
-    "laptop":       (["lép", "tóp"],              ["l","e","-5","$","t","o","-4"]),
-    "online":       (["on", "lai"],               ["o","n","$","l","a","j"]),
-    "meeting":      (["mít", "tinh"],             ["m","i","-5","t","$","t","i","ŋ"]),
-    "email":        (["i", "meo"],                ["i","$","m","ɛ","w"]),
-    "video":        (["vi", "đê", "ô"],           ["v","i","$","d","e","-1","$","o","-1"]),
-    "check":        (["chéc"],                    ["tʃ","e","-4","k"]),
-    "share":        (["sẹ"],                      ["ʃ","ɛ","-5"]),
-    "like":         (["lai"],                     ["l","a","j"]),
-    "download":     (["đao", "lôt"],              ["d","a","w","$","l","o","-4","t"]),
-    "upload":       (["ắp", "lôt"],               ["a","-4","p","$","l","o","-4","t"]),
-    "phone":        (["phôn"],                    ["f","o","n","-1"]),
-    "wifi":         (["oai", "phai"],             ["w","a","j","$","f","a","j"]),
-    "app":          (["ép"],                      ["a","-4","p"]),
-    "post":         (["pốt"],                     ["p","o","-4","t"]),
-    "call":         (["col"],                     ["k","ɔ","l","-1"]),
-    "sale":         (["xên"],                     ["s","ɛ","n","-1"]),
-    "story":        (["xto", "ri"],               ["s","t","o","-1","$","r","i","-1"]),
-    "review":       (["ri", "viu"],               ["r","i","-1","$","v","i","u","-1"]),
-    "content":      (["con", "ten"],              ["k","ɔ","n","-1","$","t","ɛ","n","-1"]),
-    "channel":      (["chen", "nồ"],              ["tʃ","ɛ","n","-1","$","n","o","-2"]),
-    "follow":       (["fo", "lô"],                ["f","ɔ","-1","$","l","o","-1"]),
-    "cancel":       (["can", "xen"],              ["k","a","n","-1","$","s","ɛ","n","-1"]),
-    "update":       (["ắp", "đết"],               ["a","-4","p","$","d","ɛ","-4","t"]),
-    "backup":       (["béc", "ắp"],               ["b","ɛ","-4","k","$","a","-4","p"]),
-    "feature":      (["phi", "chờ"],              ["f","i","-1","$","tʃ","ɤ","-1"]),
-    "website":      (["uép", "xai"],              ["u","-4","p","$","s","a","j","-1"]),
-    "deploy":       (["đi", "ploi"],              ["d","i","-1","$","p","l","ɔ","j","-1"]),
-    "submit":       (["xớp", "mít"],              ["s","ɤ","-4","p","$","m","i","-4","t"]),
-    "stream":       (["xtrim"],                   ["s","t","r","i","m","-1"]),
-    "trend":        (["tren"],                    ["t","r","ɛ","n","-1"]),
-    "version":      (["vờ", "sinh"],              ["v","ɤ","-1","$","ʃ","i","ŋ","-1"]),
-    "fix":          (["phích"],                   ["f","i","-4","k"]),
-    "edit":         (["é", "đit"],                ["ɛ","-4","$","d","i","t","-1"]),
-    "search":       (["xớc"],                     ["s","ɤ","-4","k"]),
-    "google":       (["gù", "gồ"],                ["g","u","-2","$","g","o","-2"]),
-    "presentation": (["pre","sen","tây","shần"],   ["p","r","ɛ","-1","$","s","ɛ","n","-1","$",
-                                                    "t","a","-1","j","$","ʃ","ɤ","n","-1"]),
+    "message":      (["mét", "xịt"],              ["m", "ɛ", "t", "-4", "$", "s", "i", "t", "-5"]),
+    "inbox":        (["in", "bóc"],               ["i", "n", "-1", "$", "b", "ɔ", "k", "-4"]),
+    "coffee":       (["cà", "phê"],               ["k", "a", "-2", "$", "f", "e", "-1"]),
+    "laptop":       (["láp", "tóp"],              ["l", "a", "p", "-4", "$", "t", "ɔ", "p", "-4"]),
+    "online":       (["on", "lai"],               ["ɔ", "n", "-1", "$", "l", "a", "j", "-1"]),
+    "meeting":      (["mít", "tinh"],             ["m", "i", "t", "-4", "$", "t", "i", "ŋ", "-1"]),
+    "email":        (["i", "meo"],                ["i", "-1", "$", "m", "ɛ", "w", "-1"]),
+    "video":        (["vi", "đê", "ô"],           ["v", "i", "-1", "$", "d", "e", "-1", "$", "o", "-1"]),
+    "check":        (["chéc"],                    ["tʃ", "ɛ", "k", "-4"]),
+    "share":        (["se"],                      ["s", "ɛ", "-1"]),
+    "like":         (["lai"],                     ["l", "a", "j", "-1"]),
+    "download":     (["đao", "lót"],              ["d", "a", "w", "-1", "$", "l", "ɔ", "t", "-4"]),
+    "upload":       (["ắp", "lót"],               ["a", "p", "-4", "$", "l", "ɔ", "t", "-4"]),
+    "phone":        (["phôn"],                    ["f", "o", "n", "-1"]),
+    "wifi":         (["quai", "phai"],            ["k", "w", "a", "j", "-1", "$", "f", "a", "j", "-1"]),
+    "app":          (["áp"],                      ["a", "p", "-4"]),
+    "post":         (["pốt"],                     ["p", "o", "t", "-4"]),
+    "call":         (["côn"],                     ["k", "o", "n", "-1"]),
+    "sale":         (["sêu"],                     ["s", "e", "w", "-1"]),
+    "story":        (["sờ", "to", "ri"],          ["s", "ɤ", "-2", "$", "t", "ɔ", "-1", "$", "r", "i", "-1"]),
+    "review":       (["rì", "viu"],               ["r", "i", "-2", "$", "v", "i", "w", "-1"]),
+    "content":      (["còn", "ten"],              ["k", "ɔ", "n", "-2", "$", "t", "ɛ", "n", "-1"]),
+    "channel":      (["chen", "nồ"],              ["tʃ", "ɛ", "n", "-1", "$", "n", "o", "-2"]),
+    "follow":       (["fo", "lô"],                ["f", "ɔ", "-1", "$", "l", "o", "-1"]),
+    "cancel":       (["can", "xồ"],               ["k", "a", "n", "-1", "$", "s", "o", "-2"]),
+    "update":       (["ắp", "đết"],               ["a", "p", "-4", "$", "d", "e", "t", "-4"]),
+    "backup":       (["béc", "cúp"],              ["b", "ɛ", "k", "-4", "$", "k", "u", "p", "-4"]),
+    "feature":      (["phi", "chờ"],              ["f", "i", "-1", "$", "tʃ", "ɤ", "-2"]),
+    "website":      (["uép", "xai"],              ["w", "ɛ", "p", "-4", "$", "s", "a", "j", "-1"]),
+    "deploy":       (["đì", "pờ", "loi"],         ["d", "i", "-2", "$", "p", "ɤ", "-2", "$", "l", "ɔ", "j", "-1"]),
+    "submit":       (["sụp", "mít"],              ["s", "u", "p", "-5", "$", "m", "i", "t", "-4"]),
+    "stream":       (["sì", "trim"],              ["s", "i", "-2", "$", "tʃ", "i", "m", "-1"]),
+    "trend":        (["tren"],                    ["tʃ", "ɛ", "n", "-1"]),
+    "version":      (["vơ", "sình"],              ["v", "ɤ", "-1", "$", "s", "i", "ŋ", "-2"]),
+    "fix":          (["phích"],                   ["f", "i", "k", "-4"]),
+    "edit":         (["ê", "đít"],                ["e", "-1", "$", "d", "i", "t", "-4"]),
+    "search":       (["xớc"],                     ["s", "ɤ", "k", "-4"]),
+    "google":       (["gu", "gồ"],                ["g", "u", "-1", "$", "g", "o", "-2"]),
+    "presentation": (["pờ", "rì", "sen", "tấy", "sần"], ["p", "ɤ", "-2", "$", "r", "i", "-2", "$", "s", "ɛ", "n", "-1", "$", "t", "ɤ", "j", "-4", "$", "s", "ɤ", "n", "-2"]),
 }
 
 
@@ -288,10 +242,6 @@ if __name__ == "__main__":
     for p in VN_NUCLEI:    _cat[p] = "VN nucleus"
     for p in VN_CODAS:     _cat[p] = "VN coda"
     for p in VN_TONES:     _cat[p] = "VN tone"
-    for p in EN_VOWELS:    _cat[p] = "EN vowel"
-    for p in EN_DIPHTHONGS:_cat[p] = "EN diphthong"
-    for p in EN_CONSONANTS:_cat[p] = "EN consonant"
-
     print(f"  {'Idx':>4}  {'Phoneme':<8}  Category")
     print(f"  {'-'*35}")
     for tok, idx in VOCAB.items():
