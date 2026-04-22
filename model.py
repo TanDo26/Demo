@@ -229,7 +229,7 @@ class PhonemeTransformerDecoder(nn.Module):
         num_layers:      int   = 6,
         dim_feedforward: int   = 2048,
         dropout:         float = 0.1,
-        max_len:         int   = 512,
+        max_len:         int   = 2048,
     ):
         super().__init__()
         self.d_model    = d_model
@@ -397,7 +397,7 @@ class PhoWhisperSeq2SeqModel(nn.Module):
         num_layers:      int   = 6,
         dim_feedforward: int   = 2048,
         dropout:         float = 0.1,
-        max_dec_len:     int   = 512,
+        max_dec_len:     int   = 2048,
     ):
         super().__init__()
         self.device_str      = device
