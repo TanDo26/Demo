@@ -1,12 +1,11 @@
 """
 run.py
-Apply the trained checkpoint to wav files listed in data/manifest.jsonl,
-show per-file results (text / true phoneme / predicted phoneme),
-and report the overall Phoneme Error Rate (PER).
+Apply the trained Transformer-Decoder checkpoint to wav files listed in
+data/manifest.jsonl, show per-file results, and report overall PER.
 
 Usage:
     python run.py
-    python run.py --manifest data/manifest.jsonl --checkpoint checkpoint.pt
+    python run.py --manifest data/manifest.jsonl --checkpoint checkpoint_seq2seq.pt
 """
 
 import argparse
@@ -31,7 +30,7 @@ threading.excepthook = _silent_hf
 import torch
 from tqdm import tqdm
 
-from model import PhoWhisperCTCModel, load_wav_to_mel, ctc_greedy_decode
+from model import PhoWhisperSeq2SeqModel, load_wav_to_mel, load_seq2seq_checkpoint
 from phoneme_set import decode_sequence
 
 
@@ -159,10 +158,10 @@ def phonemes_to_text(phonemes: list[str]) -> str:
 
 # ================= MAIN =================
 def run(
-    manifest_path: str  = "data/manifest.jsonl",
-    audio_root:    str  = "data",
-    checkpoint:    str  = "checkpoint.pt",
-    device:        str  | None = None,
+    manifest_path: str       = "data/manifest.jsonl",
+    audio_root:    str       = "data",
+    checkpoint:    str       = "checkpoint_seq2seq.pt",
+    device:        str | None = None,
 ):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -172,13 +171,12 @@ def run(
     print(f"Checkpoint   : {checkpoint}")
     print(f"Manifest     : {manifest_path}\n")
 
-    model = PhoWhisperCTCModel(device=device)
+    model = PhoWhisperSeq2SeqModel(device=device)
     if os.path.exists(checkpoint):
-        ckpt = torch.load(checkpoint, map_location=device, weights_only=True)
-        model.ctc_head.load_state_dict(ckpt)
+        load_seq2seq_checkpoint(model, checkpoint)
         print(f"  ✓ Loaded checkpoint: {checkpoint}\n")
     else:
-        print(f"  ⚠ No checkpoint found at '{checkpoint}' — using random weights.\n")
+        print(f"  ⚠ No checkpoint found at '{checkpoint}' — using random decoder weights.\n")
 
     model.eval()
 
@@ -199,11 +197,8 @@ def run(
         ref_phonemes = item["phoneme"]
 
         try:
-            with torch.no_grad():
-                mel    = load_wav_to_mel(wav_path).to(device)   # (1, 3000, 80)
-                logits = model(mel)                              # (1, T', V)
-                indices      = ctc_greedy_decode(logits[0])
-                hyp_phonemes = decode_sequence(indices, skip_special=True)
+            # Autoregressive greedy decode via Transformer decoder
+            hyp_phonemes = model.wav_to_phonemes(wav_path)
         except Exception as e:
             print(f"\n  [warn] skipped {wav_path}: {e}")
             hyp_phonemes = []
@@ -240,9 +235,9 @@ if __name__ == "__main__":
     parser.add_argument("--manifest",   default="data/manifest.jsonl",
                         help="Path to manifest .jsonl  (default: data/manifest.jsonl)")
     parser.add_argument("--audio_root", default="data",
-                        help="Root folder prepended to audio paths in manifest  (default: dataset)")
-    parser.add_argument("--checkpoint", default="checkpoint.pt",
-                        help="Checkpoint .pt file  (default: checkpoint.pt)")
+                        help="Root folder prepended to audio paths in manifest  (default: data)")
+    parser.add_argument("--checkpoint", default="checkpoint_seq2seq.pt",
+                        help="Seq2Seq checkpoint .pt  (default: checkpoint_seq2seq.pt)")
     parser.add_argument("--device",     default=None,
                         help="cpu / cuda  (default: auto-detect)")
     args = parser.parse_args()
