@@ -509,6 +509,104 @@ def download_vivos():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  5. TEDLIUM-1 Cleaned  (Kaggle: peterokonma/tedlium-1-cleaned) - ENGLISH
+# ─────────────────────────────────────────────────────────────────────────────
+
+def download_tedlium():
+    print("\n" + "="*60, flush=True)
+    print("  [5/5] Downloading TEDLIUM-1 Cleaned (Kaggle) ...")
+    print("="*60, flush=True)
+
+    try:
+        import kagglehub
+    except ImportError:
+        print("  [ERROR] Missing 'kagglehub'. Run: pip install kagglehub")
+        return
+
+    try:
+        raw_path = kagglehub.dataset_download(
+            "peterokonma/tedlium-1-cleaned"
+        )
+    except Exception as e:
+        print(f"  [ERROR] KaggleHub download failed: {e}")
+        return
+
+    raw_path = Path(raw_path)
+    print(f"  Raw files at: {raw_path}", flush=True)
+
+    out_dir   = DATASET_ROOT / "tedlium"
+    audio_dir = out_dir / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = out_dir / "manifest.jsonl"
+
+    # Linh hoạt tìm file gốc vì cấu trúc dataset có thể thay đổi
+    wav_files = sorted(raw_path.rglob("*.wav"))
+    if not wav_files:
+        wav_files = sorted(raw_path.rglob("*.mp3")) + sorted(raw_path.rglob("*.flac"))
+    print(f"  Found {len(wav_files)} audio files", flush=True)
+
+    # Cố gắng parse nội dung transcript từ các file .csv, .txt hoặc .stm
+    utt2text = {}
+    meta_files = list(raw_path.rglob("metadata.csv")) + list(raw_path.rglob("transcripts.txt"))
+    for mf in meta_files:
+        try:
+            with open(mf, "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split('|')  # Thường dạng file|text
+                    if len(parts) >= 2:
+                        utt2text[Path(parts[0]).stem] = parts[1].strip()
+                    else:
+                        parts = line.strip().split(',', 1)
+                        if len(parts) >= 2:
+                             utt2text[Path(parts[0]).stem] = parts[1].strip()
+        except: pass
+
+    records = []
+    
+    def _copy_wav(args):
+        src, dst = args
+        shutil.copy2(src, dst)
+
+    tasks = []
+    for idx, src_wav in enumerate(wav_files):
+        fname   = f"tedlium_{idx:06d}.wav"
+        dst_wav = audio_dir / fname
+        tasks.append((src_wav, dst_wav, fname, src_wav.stem))
+
+    with ThreadPoolExecutor(max_workers=_NUM_IO_WORKERS) as pool:
+        fut_map = {
+            pool.submit(_copy_wav, (src, dst)): (src, fname, stem)
+            for src, dst, fname, stem in tasks
+        }
+        for fut in tqdm(as_completed(fut_map), total=len(fut_map),
+                        desc="    TEDLIUM", unit="file",
+                        dynamic_ncols=True, file=sys.stdout):
+            src_wav, fname, stem = fut_map[fut]
+            try: fut.result()
+            except Exception as e: continue
+
+            # Lấy text tĩnh hoặc tìm file .txt đi kèm cùng tên
+            text = utt2text.get(stem, "")
+            if not text:
+                txt_path = src_wav.with_suffix(".txt")
+                if txt_path.exists():
+                    text = txt_path.read_text(encoding="utf-8").strip()
+
+            phoneme = text_to_phoneme(text, mode="en") if text else []
+
+            records.append({
+                "audio":   f"audio/{fname}",
+                "text":    text,
+                "phoneme": phoneme,
+                "source":  "tedlium",
+                "language": "en"
+            })
+
+    write_manifest(records, manifest_path)
+    print(f"  [TEDLIUM] Done: {len(records)} samples → {out_dir}", flush=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  MERGE all sub-manifests → manifest_all.jsonl
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -562,8 +660,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sources",
         nargs="+",
-        default=["vlsp2020", "common_voice", "fosd", "vivos"],
-        choices=["vlsp2020", "common_voice", "fosd", "vivos"],
+        default=["vlsp2020", "common_voice", "fosd", "vivos", "tedlium"],
+        choices=["vlsp2020", "common_voice", "fosd", "vivos", "tedlium"],
         help="Datasets to download (default: all)",
     )
     parser.add_argument(
@@ -586,6 +684,7 @@ if __name__ == "__main__":
     if "common_voice" in args.sources: download_common_voice()
     if "fosd"         in args.sources: download_fosd()
     if "vivos"        in args.sources: download_vivos()
+    if "tedlium"      in args.sources: download_tedlium()
 
     merge_all_manifests()
 
