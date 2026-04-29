@@ -1,29 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 download_datasets.py
-Tải toàn bộ 4 dataset (VLSP2020, CommonVoice, FOSD, VIVOS)
+Tải toàn bộ 4 dataset (VLSP2020, FOSD, VIVOS, TEDLIUM)
 và lưu vào thư mục `dataset/` theo định dạng thống nhất:
     dataset/
-        vlsp2020/         audio/*.wav  +  manifest.jsonl
-        common_voice_vi/  audio/*.wav  +  manifest.jsonl
-        common_voice_en/  audio/*.wav  +  manifest.jsonl
-        fosd/             audio/*.wav  +  manifest.jsonl
-        vivos/            audio/*.wav  +  manifest.jsonl
+        vlsp2020/  audio/*.wav  +  manifest.jsonl
+        fosd/      audio/*.wav  +  manifest.jsonl
+        vivos/     audio/*.wav  +  manifest.jsonl
+        tedlium/   audio/*.wav  +  manifest.jsonl
 
 Mỗi dòng trong manifest.jsonl:
-    {"audio": "audio/utt.wav", "text": "xin chào", "phoneme": ["s","i","n",...], "source": "vlsp2020"}
+    {"audio": "audio/utt.wav", "text": "xin chào", "phoneme": [...], "source": "vlsp2020"}
 
 Speed-ups:
-  - HF_HUB_ENABLE_HF_TRANSFER=1  → multi-part parallel shard download
-    (requires: pip install hf-transfer)
-  - ThreadPoolExecutor            → parallel WAV file writes
-  - Streaming manifest writes     → no large in-memory list accumulation
+  - ThreadPoolExecutor  → parallel WAV file writes
+  - Streaming manifest writes → no large in-memory list accumulation
 """
 
 # ── Enable hf_transfer BEFORE importing huggingface_hub / datasets ───────────
 import os
-os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
-os.environ.setdefault("HF_DATASETS_TRUST_REMOTE_CODE", "1")
 
 import sys
 import io
@@ -72,51 +67,6 @@ def write_manifest(records: list, manifest_path: Path):
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     print(f"  >> Saved manifest: {manifest_path} ({len(records)} records)", flush=True)
 
-
-def _process_hf_split_parallel(split_ds, split_name, audio_dir,
-                                prefix, manifest_fh, extra_fields_fn,
-                                start_idx=0):
-    """
-    Parallel-write WAVs for one HuggingFace split, stream-write manifest lines.
-    Returns number of samples processed.
-    """
-    idx = start_idx
-    pending = {}
-
-    with ThreadPoolExecutor(max_workers=_NUM_IO_WORKERS) as pool:
-        pbar = tqdm(total=len(split_ds),
-                    desc=f"    {prefix}/{split_name}",
-                    unit="sample", dynamic_ncols=True, file=sys.stdout)
-
-        for item in split_ds:
-            fname = f"{prefix}_{split_name}_{idx:06d}.wav"
-            fpath = audio_dir / fname
-            audio = item["audio"]
-            fut   = pool.submit(_write_wav, audio["array"], audio["sampling_rate"], fpath)
-            rec   = {"audio": f"audio/{fname}", **extra_fields_fn(item, split_name)}
-            pending[fut] = rec
-            idx += 1
-
-            # Drain completed futures to keep memory low
-            if len(pending) >= _NUM_IO_WORKERS * 4:
-                done = [f for f in list(pending) if f.done()]
-                for f in done:
-                    f.result()
-                    manifest_fh.write(
-                        json.dumps(pending.pop(f), ensure_ascii=False) + "\n"
-                    )
-                    pbar.update(1)
-
-        for fut in as_completed(pending):
-            fut.result()
-            manifest_fh.write(
-                json.dumps(pending[fut], ensure_ascii=False) + "\n"
-            )
-            pbar.update(1)
-
-        pbar.close()
-
-    return idx - start_idx
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -204,77 +154,6 @@ def download_vlsp2020():
 
     write_manifest(records, manifest_path)
     print(f"  [VLSP2020] Done: {len(records)} samples → {out_dir}", flush=True)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  2. COMMON VOICE  (HuggingFace: vi + en)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def download_common_voice():
-    print("\n" + "="*60, flush=True)
-    print("  [2/4] Downloading Common Voice (vi + en) ...")
-    print("="*60, flush=True)
-
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        print("  [ERROR] Missing 'datasets'. Run: pip install datasets")
-        return
-
-    for lang_code, lang_name, phoneme_mode in [
-        ("vi", "common_voice_vi", "vi"),
-        ("en", "common_voice_en", "en"),
-    ]:
-        print(f"\n  -- Language: {lang_code} --", flush=True)
-
-        out_dir   = DATASET_ROOT / lang_name
-        audio_dir = out_dir / "audio"
-        audio_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = out_dir / "manifest.jsonl"
-
-        try:
-            ds = load_dataset(
-                "mozilla-foundation/common_voice_17_0",
-                lang_code,
-                trust_remote_code=True,
-                token=True,
-            )
-        except Exception as e:
-            print(f"  [WARN] common_voice_17_0/{lang_code} failed: {e}")
-            print("  Trying common_voice_11_0 ...")
-            try:
-                ds = load_dataset(
-                    "mozilla-foundation/common_voice_11_0",
-                    lang_code,
-                    trust_remote_code=True,
-                )
-            except Exception as e2:
-                print(f"  [ERROR] Failed to load Common Voice {lang_code}: {e2}")
-                continue
-
-        total = 0
-        with open(manifest_path, "w", encoding="utf-8") as mf:
-            for split_name, split_ds in ds.items():
-                print(f"    Split: {split_name} ({len(split_ds)} samples)", flush=True)
-
-                def fields(item, sn, lc=lang_code, pm=phoneme_mode):
-                    text = item.get("sentence", "")
-                    return {
-                        "text":     text,
-                        "phoneme":  text_to_phoneme(text, mode=pm) if text else [],
-                        "source":   f"common_voice_{lc}",
-                        "split":    sn,
-                        "language": lc,
-                    }
-
-                n = _process_hf_split_parallel(
-                    split_ds, split_name, audio_dir,
-                    f"cv_{lang_code}", mf, fields,
-                    start_idx=total,
-                )
-                total += n
-
-        print(f"  [CommonVoice-{lang_code}] Done: {total} samples → {out_dir}", flush=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -660,8 +539,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sources",
         nargs="+",
-        default=["vlsp2020", "common_voice", "fosd", "vivos", "tedlium"],
-        choices=["vlsp2020", "common_voice", "fosd", "vivos", "tedlium"],
+        default=["vlsp2020", "fosd", "vivos", "tedlium"],
+        choices=["vlsp2020", "fosd", "vivos", "tedlium"],
         help="Datasets to download (default: all)",
     )
     parser.add_argument(
@@ -680,8 +559,7 @@ if __name__ == "__main__":
     print(f"  hf_transfer   : {os.environ.get('HF_HUB_ENABLE_HF_TRANSFER', '0')}")
     print("=" * 60, flush=True)
 
-    if "vlsp2020"     in args.sources: download_vlsp2020()
-    if "common_voice" in args.sources: download_common_voice()
+    if "vlsp2020" in args.sources: download_vlsp2020()
     if "fosd"         in args.sources: download_fosd()
     if "vivos"        in args.sources: download_vivos()
     if "tedlium"      in args.sources: download_tedlium()
