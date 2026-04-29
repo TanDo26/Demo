@@ -1,8 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/nightly/cu130
 
 # ── Core deep learning ────────────────────────────────────────────────────────
-# Lưu ý: Vì CUDA 13.0 hiện chỉ có ở bản nightly, khi cài đặt bằng file này bạn cần thêm cờ --pre
-# Ví dụ: pip install --pre -r requirements.txt
 torch>=2.1.0
 torchaudio>=2.1.0
 torchvision
@@ -27,5 +25,7 @@ phonemizer>=3.2.1
 
 # ── Dataset Downloading ──────────────────────────────────────────────────────
 kagglehub
-datasets
-hf-transfer
+
+# ── Vietnamese G2P ────────────────────────────────────────────────────────────
+vietnamesenormalizer    # normalize số, ngày tháng, viết tắt → chữ
+vietnormalizer          # phát hiện tiếng Việt, transliterate EN→VN
