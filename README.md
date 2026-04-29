@@ -1,7 +1,7 @@
 # Vietnamese ASR Phoneme Pipeline
 
 A rule-based, dialect-aware **Grapheme-to-Phoneme (G2P)** pipeline for Vietnamese ASR training data.  
-Converts raw text in speech manifests into Latin-encoded phoneme sequences for both the **Northern** and **Southern** dialects.
+Converts raw text in speech manifests into Latin-encoded phoneme sequences.
 
 ---
 
@@ -33,33 +33,9 @@ Defines the complete **Latin-based phoneme set** used throughout the pipeline. A
 | **Special tokens** | `<pad>` `<unk>` `<sot>` `<eot>` `$` | `$` = syllable boundary |
 | **Initials** (âm đầu) | `b c ch tr d z j g h kh l m n ng nh p ph r s x t th v qu` | Dialect variants split (e.g. `z`/`j` for Northern/Southern `d/gi`) |
 | **Medials** (âm đệm) | `u o` | Labio-velar glides before the nucleus |
-| **Nuclei** (nguyên âm) | `a aw aa e ee i o oo ow u uw ie uo uwo` | Short, long, and diphthong nuclei |
-| **Codas** (âm cuối) | `p t c m n ng nh y w` | Final consonants and off-glides |
+| **Nuclei** (nguyên âm) | `a aw aa e ee i o oo ow u uw ie ua uo uwa uow` | Short, long, diphthong and triphthong nuclei |
+| **Codas** (âm cuối) | `p t c m n ng nh y u o` | Final consonants |
 | **Tones** (thanh điệu) | `t1 t2 t3 t4 t5 t6` | ngang / huyền / hỏi / sắc / nặng / ngã |
-
-### Vocabulary
-
-A deterministic `VOCAB: dict[str, int]` is built at import time from the lists above (total ~60 tokens). Helper constants and functions are provided:
-
-```python
-from phoneme_set import VOCAB, VOCAB_SIZE, encode_sequence, decode_sequence
-
-indices = encode_sequence(["x", "i", "n", "t1", "$", "ch", "a", "w", "t2"])
-phonemes = decode_sequence(indices, skip_special=True)
-```
-
-### Vietlish Map
-
-`VIETLISH_MAP` is a curated dictionary of common English loanwords used in Vietnamese speech ("Vietlish"), mapping each word to:
-- A list of Vietnamese syllable approximations (graphemes)
-- A pre-computed phoneme sequence
-
-```python
-VIETLISH_MAP["inbox"]   # → (["in", "bóc"], ["i","n","t1","$","b","o","c","t4"])
-VIETLISH_MAP["laptop"]  # → (["láp", "tóp"], ["l","a","p","t4","$","t","o","p","t4"])
-```
-
----
 
 ## `text2phoneme.py` — G2P Engine & Manifest Processor
 

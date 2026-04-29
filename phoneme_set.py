@@ -22,7 +22,7 @@ VN_INITIALS = [
     "tr",   # tr 
     "d",    # đ
     "z",    # d, gi, r 
-    "j",    # d, gi, v 
+    "j",    # d, gi, v
     "g",    # g, gh
     "h",    # h
     "kh",   # kh
@@ -62,8 +62,10 @@ VN_NUCLEI = [
     "u",    # u
     "uw",   # ư
     "ie",   # ia, iê, ya, yê
-    "uo",   # ua, uô
-    "uwo",  # ưa, ươ
+    "ua",   # ua
+    "uo",   # uo, uô
+    "uwa",  # ưa
+    "uow",  # ươ
 ]
 
 # Âm cuối (Codas)
@@ -76,7 +78,8 @@ VN_CODAS = [
     "ng",   # -ng
     "nh",   # -nh
     "y",    # -i / -y glide
-    "w",    # -u / -o glide
+    "u",    # -u glide
+    "o",    # -o glide
 ]
 
 # Thanh điệu (Tones) — 6 tones
